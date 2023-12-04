@@ -5,6 +5,7 @@ import sys
 import numpy as np
 from copy import deepcopy
 import time
+import random
 
 
 @register_agent("student_agent")
@@ -43,134 +44,244 @@ class StudentAgent(Agent):
         # Some simple code to help you with timing. Consider checking 
         # time_taken during your search and breaking with the best answer
         # so far when it nears 2 seconds.
+        
         start_time = time.time()
-
-
-
-
+        
+        # best_r, best_c, best_dir = self.find_best_move(chess_board, my_pos, adv_pos, max_step, 3)
+        best_r, best_c, best_dir = self.find_best_move_IDS(chess_board, my_pos, adv_pos, max_step, 10)
 
         time_taken = time.time() - start_time
         
         print("My AI's turn took ", time_taken, "seconds.")
 
         # dummy return
-        return my_pos, self.dir_map["u"]
+        return (best_r, best_c), best_dir
     
+
+    def reoder_moves(self, possible_moves, state, my_pos, adv_pos, max_steps):
+        scores = []
+
+        # evaluate each move
+        for move in possible_moves:
+            r, c, dir = move
+            state[move] = True
+            score = self.evaluate(state, (r, c), adv_pos, max_steps)
+            state[move] = False
+            scores.append(score)
+
+        # Reorder the moves
+        possible_moves = np.array(possible_moves)
+        sorted_moves_idx = np.argsort(scores)[::-1]
+        sorted_moves_idx = sorted_moves_idx[:5]
+        return possible_moves[sorted_moves_idx]
+        
+
+    def find_best_move_IDS(self, state, my_pos, adv_pos, max_steps, max_depth):
+        start_time = time.time()
+        # Initial score
+        best_score = -np.inf
+        best_moves = []
+
+        moves = self.generate_moves(my_pos, adv_pos, max_steps, state)
+        m = self.reoder_moves(moves, state, my_pos, adv_pos, max_steps) 
+        for move in m:
+            move = tuple(move)
+           
+            time_taken = time.time() - start_time
+            if (time_taken >= 2):
+                break
+            r, c, dir = move
+            # Perform move on the state
+            state[move] = True
+            minimax_score = self.iterative_deepening_search(state, (r,c), adv_pos, max_steps, max_depth, start_time)
+            # Undo the move on the state
+            state[move] = False
+
+            # Update best score and add to list of best move
+            if minimax_score > best_score:
+                best_score = minimax_score
+                best_moves = [move]
+
+            elif minimax_score == best_score:
+                best_moves.append(move)
+
+        
+        # Pick random best moves out of the list of best moves
+        random_best_move = random.randint(0, len(best_moves) - 1)
+        best_r, best_c, best_dir = best_moves[random_best_move]
+
+        return best_r, best_c, best_dir
+
+
+
+    def iterative_deepening_search(self, state, my_pos, adv_pos, max_steps, max_depth, start_time):
+        score = 0
+        for depth in range(max_depth):
+            time_taken = time.time() - start_time
+            if time_taken >= 2:
+                break
+            score = self.basic_minimax(state, depth, False, my_pos, adv_pos, max_steps, -np.inf, np.inf, start_time)
+            if (np.isinf(score)):
+                break
+        return score
+
+
+
+    def find_best_move(self, state, my_pos, adv_pos, max_steps, depth):
+
+        start_time = time.time()
+        # Initial score
+        best_score = -np.inf
+        best_moves = []
+
+        moves = self.generate_moves(my_pos, adv_pos, max_steps, state)
+        m = self.reoder_moves(moves, state, my_pos, adv_pos, max_steps) 
+        for move in m:
+            move = tuple(move)
+            time_taken = time.time() - start_time
+            if (time_taken >= 2):
+                break
+            r, c, dir = move
+            # Perform move on the state
+            state[move] = True
+            minimax_score = self.basic_minimax(state, depth, False, (r, c), adv_pos, max_steps, -np.inf, np.inf, start_time)
+            # Undo the move on the state
+            state[move] = False
+            # Update best score and add to list of best move
+            if minimax_score > best_score:
+                best_score = minimax_score
+                best_moves = [move]
+
+            elif minimax_score == best_score:
+                best_moves.append(move)
+
+        
+        # Pick random best moves out of the list of best moves
+        random_best_move = random.randint(0, len(best_moves) - 1)
+        best_r, best_c, best_dir = best_moves[random_best_move]
+
+        return best_r, best_c, best_dir
+
 
     def generate_moves(self, my_pos, adv_pos, max_steps, chess_board):
-        
-        # BFS
+        visited = {my_pos}
         my_pos = np.array(my_pos)
         state_queue = [(my_pos, 0)]
-        visited = {tuple(my_pos)}
+        possible_moves = []
 
-        moves = ((-1, 0), (0, 1), (1, 0), (0, -1))
-
-        while state_queue:
-            cur_pos, cur_step = state_queue.pop(0)
-            r, c = cur_pos
-            if cur_step == max_steps:
-                break
-            for dir, move in enumerate(moves):
-                if chess_board[r, c, dir]:
-                    continue
-
-                next_pos = cur_pos + move
-                if np.array_equal(next_pos, adv_pos) or tuple(next_pos) in visited:
-                    continue
-                
-                visited.add(tuple(next_pos))
-                state_queue.append((next_pos, cur_step + 1))
-
-        return visited
-    
-
-    def bfs(self, my_pos, adv_pos, max_steps, chess_board):
-        
-        # BFS
-        # start_time = time.time()
-        my_pos = np.array(my_pos)
-        state_queue = [(my_pos, 0)]
-        visited = {tuple()}
-        
-
-        r, c = my_pos
-        for dir in range(4):
-            if chess_board[r, c, dir]:
-                continue
-            visited.add(tuple([r, c, dir]))
-
-        # Moves (Up, Right, Down, Left)
         moves = ((-1, 0), (0, 1), (1, 0), (0, -1)) 
 
         while state_queue:
             cur_pos, cur_step = state_queue.pop(0)
             r, c = cur_pos
-            if cur_step == max_steps:
+            if cur_step > max_steps:
                 break
-            
-            # save all four directions for barriers
-            for dir in range(4):
-                if tuple([r, c, dir]) in visited or chess_board[r, c, dir]:
-                    continue
-                visited.add(tuple([r, c, dir]))
-
             for dir, move in enumerate(moves):
-                if chess_board[r, c, dir]:
+                if chess_board[r, c, dir]: 
                     continue
 
+                # Store each direction of the current r, c
+                possible_moves.append(tuple([r, c, dir]))
                 next_pos = cur_pos + move
-                r , c = next_pos
-                if np.array_equal(next_pos, adv_pos) or tuple([r, c, dir]) in visited or chess_board[r, c, dir]:
+                
+                next_r, next_c = next_pos
+                if np.array_equal(next_pos, adv_pos) or tuple([next_r, next_c]) in visited:
                     continue
                 
-                # visited.add(tuple([r, c, dir]))
+                visited.add(tuple(next_pos))
                 state_queue.append((next_pos, cur_step + 1))
-        end_time = time.time()
-        # time_taken = end_time - start_time
-        return visited
-
-    # def evaluate_board(self, chess_board, max_pos, min_pos, maximizing_player):
-    #     return 0
-
+        
+        return possible_moves
     
 
+    def evaluate(self, state, my_pos, adv_pos, max_steps):
+         
+        # The number of surrounding barriers
+        # The more close to the opponent the better the move
+        adv_r, adv_c = adv_pos
+        my_r, my_c = my_pos
 
-    def minimax(self, chess_board, max_pos, min_pos, max_player_turn, current_depth, max_depth, max_steps, alpha, beta):
-        # Base case : if at max depth or game is over
-        has_ended, utility = self.check_endgame(chess_board, max_pos, min_pos)
+        # barriers directly around adverse
+        barriers_around_adv = sum(state[adv_r, adv_c, :])  
+        if barriers_around_adv == 4:
+            barriers_around_adv = np.inf
 
-        if current_depth == max_depth or has_ended:
-            return utility
+        # Number of non barriers around my agent
+        barriers_around_agent = sum(state[my_r, my_c, :])
+        if barriers_around_agent == 4:
+            barriers_around_agent = -np.inf
         
-        # Case 1 : Max Player Turn
-        if max_player_turn:
-            best_val = -np.inf
-            for pos in self.bfs(max_pos, min_pos, max_steps, chess_board):
-                # Make move
-                r, c, dir = pos
-                chess_board[r, c, dir] = True
-                value = self.minimax(chess_board, pos, min_pos, False, current_depth + 1, max_depth, max_steps, alpha, beta)
-                best_val = max(best_val, value)
-                alpha = max(alpha, best_val)
+        non_barriers_around_agent = 4 - sum(state[my_r, my_c, :]) 
+        if non_barriers_around_agent == 0 and barriers_around_adv != 4:
+            non_barriers_around_agent = -np.inf
+
+        
+        # Distance from the middle point
+        # We want to stay in the middle as often as possible
+        middle_board = len(state) / 2
+        distance_middle_agent = (np.abs(middle_board - my_r) + np.abs(middle_board - my_c))
+
+        # Distance between agent and opponent
+        distance_agent_adv = (np.abs(adv_r - my_r) + np.abs(adv_c - my_c))
+
+        # Distance between middle and adv
+        distance_middle_adv = np.abs(middle_board - adv_r) + np.abs(middle_board - adv_c)
+
+        # Limit number of moves
+        # num_adv_moves = len(self.generate_moves(adv_pos, my_pos, max_steps - 3, state))
+        # num_my_moves = len(self.generate_moves(my_pos, adv_pos, max_steps - 3, state))
+
+        # diff_num_moves = num_my_moves - num_adv_moves
+        
+        return barriers_around_agent + 3 * barriers_around_adv + 3 * non_barriers_around_agent - (0.2*distance_middle_agent) - (0.5*distance_agent_adv) + distance_middle_adv + 100#(3*diff_num_moves) + 100 # offset
+
+
+    def basic_minimax(self, state, depth, is_max_turn, max_pos, min_pos, max_steps, alpha, beta, start_time):
+        # Check if game has ended
+
+        if time.time() - start_time >= 2:
+            return self.evaluate(state, max_pos, min_pos, max_steps)
+        
+        has_ended = self.check_endgame(state, max_pos, min_pos)
+        
+        if depth == 0 or has_ended:
+            return self.evaluate(state, max_pos, min_pos, max_steps)
+
+        if is_max_turn:
+            best_score = -np.inf            
+            # Generate all possible moves 
+            possible_moves = self.generate_moves(max_pos, min_pos, max_steps, state)
+            possible_moves = self.reoder_moves(possible_moves, state, max_pos, min_pos, max_steps)
+            for move in possible_moves:
+                move = tuple(move)
+                r, c, _ = move
+                state[move] = True
+                value = self.basic_minimax(state, depth - 1, False, (r, c), min_pos, max_steps, alpha, beta, start_time)
+                state[move] = False
+                best_score = max(value, best_score)
+                alpha = max(alpha, best_score)
                 if beta <= alpha:
                     break
-            return best_val
-        
-        # Case 2 : Min Player Turn
-        else:
-            best_val = np.inf
-            for pos in self.bfs(min_pos, max_pos, max_steps, chess_board):
-                value = self.minimax(chess_board, pos, min_pos, True, current_depth + 1, max_depth, max_steps, alpha, beta)
-                best_val = min(best_val, value)
-                beta = min(beta, best_val)
+            return best_score
+        else:   
+            best_score = np.inf
+            # Generate all possible moves 
+            possible_moves = self.generate_moves(max_pos, min_pos, max_steps, state)
+            possible_moves = self.reoder_moves(possible_moves, state, min_pos, max_pos, max_steps)
+            for move in possible_moves:
+                move = tuple(move)
+                r, c, _ = move
+                state[move] = True
+                value = self.basic_minimax(state, depth - 1, True, max_pos, (r,c), max_steps, alpha, beta, start_time)
+                state[move] = False
+                best_score = min(value, best_score)
+                beta = min(beta, best_score)
                 if beta <= alpha:
                     break
-            return best_val
+            return best_score
 
 
-
-    def check_endgame(self, chess_board, max_pos, min_pos):
+    def check_endgame(self, chess_board, my_pos, adv_pos):
         
         # Player 0 is max
         # Player 1 is min
@@ -207,18 +318,14 @@ class StudentAgent(Agent):
             for c in range(board_size):
                 find((r, c))
                 
-        p0_r = find(tuple(max_pos))
-        p1_r = find(tuple(min_pos))
-        p0_score = list(father.values()).count(p0_r)
-        p1_score = list(father.values()).count(p1_r)
-
+        p0_r = find(tuple(my_pos))
+        p1_r = find(tuple(adv_pos))
+        
         if p0_r == p1_r:
-            return False, 0
+            return False
         
-        if p0_score > p1_score:
-            return True, 1 # Max player won
-        elif p0_score < p1_score:
-            return True, -1 # Min player won
-        else:
-            return True, 0 # Draw
-        
+        return True
+    
+    def check_valid_input(self, x, y, dir, x_max, y_max):
+        return 0 <= x < x_max and 0 <= y < y_max and dir in self.dir_map
+    
